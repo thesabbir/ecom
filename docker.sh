@@ -47,7 +47,9 @@ load_env() {
     local env_file=".env.$1"
     if [ -f "$env_file" ]; then
         print_info "Loading environment from $env_file"
-        export $(cat "$env_file" | grep -v '^#' | xargs)
+        set -a  # Mark all new variables for export
+        source "$env_file"
+        set +a  # Turn off auto-export
     else
         print_warning "Environment file $env_file not found, using defaults"
     fi
@@ -93,6 +95,12 @@ EOF
 dev() {
     print_info "Starting development environment..."
     load_env "dev"
+
+    # Build the image first
+    print_info "Building development image..."
+    docker-compose --env-file .env.dev build api
+
+    # Then start all services
     docker-compose --env-file .env.dev --profile dev up -d
     print_success "Development environment started"
     print_info "Services:"
@@ -130,6 +138,11 @@ up() {
     local profile="${1:-dev}"
     print_info "Starting $profile environment..."
     load_env "$profile"
+
+    # Build the image first to avoid duplicate builds
+    print_info "Building image..."
+    docker-compose --env-file ".env.$profile" build api
+
     docker-compose --env-file ".env.$profile" --profile "$profile" up -d "${@:2}"
     print_success "Services started"
 }

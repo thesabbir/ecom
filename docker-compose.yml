@@ -6,10 +6,14 @@ x-common-env: &common-env
   CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
 
 x-app-service: &app-service
+  image: ecommerce-crawler:${BUILD_TARGET:-development}
   build:
     context: .
     dockerfile: Dockerfile
     target: ${BUILD_TARGET:-development}
+    cache_from:
+      - ecommerce-crawler:${BUILD_TARGET:-development}
+      - ecommerce-crawler:base
   environment:
     <<: *common-env
   volumes:
@@ -52,7 +56,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./src:/app/src:ro  # Dev only - for hot reload
+      - ./src:/app/src  # Dev only - for hot reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}

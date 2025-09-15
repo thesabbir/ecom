@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for both development and production
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -44,7 +44,7 @@ RUN pip install --no-cache-dir uv && \
 RUN playwright install chromium
 
 # Development stage
-FROM base as development
+FROM base AS development
 
 # Copy application code
 COPY src/ ./src/
@@ -60,7 +60,7 @@ ENV PYTHONPATH=/app
 CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production stage
-FROM base as production
+FROM base AS production
 
 # Install production server
 RUN pip install --no-cache-dir gunicorn
