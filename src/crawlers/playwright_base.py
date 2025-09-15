@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from playwright.async_api import async_playwright, Page, Browser
 from bs4 import BeautifulSoup
 import asyncio
-from datetime import datetime
 import logging
-import random
 from ..models.product import Product
 
 logger = logging.getLogger(__name__)
@@ -39,30 +37,30 @@ class PlaywrightCrawler(ABC):
         self.browser = await self.playwright.chromium.launch(
             headless=True,  # Set to False for debugging
             args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            ]
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            ],
         )
 
         # Create context with anti-detection settings
         context = await self.browser.new_context(
-            viewport={'width': 1920, 'height': 1080},
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            locale='en-US',
-            timezone_id='America/New_York',
-            permissions=['geolocation'],
+            viewport={"width": 1920, "height": 1080},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            locale="en-US",
+            timezone_id="America/New_York",
+            permissions=["geolocation"],
             extra_http_headers={
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+            },
         )
 
         self.page = await context.new_page()
@@ -102,14 +100,16 @@ class PlaywrightCrawler(ABC):
         if self.playwright:
             await self.playwright.stop()
 
-    async def fetch_page(self, url: str, wait_for_selector: Optional[str] = None) -> Optional[str]:
+    async def fetch_page(
+        self, url: str, wait_for_selector: Optional[str] = None
+    ) -> Optional[str]:
         """Fetch page content using Playwright"""
         try:
             # Minimal delay between requests
             await asyncio.sleep(self.rate_limit_delay)
 
             # Navigate to page (domcontentloaded is faster than networkidle)
-            await self.page.goto(url, wait_until='domcontentloaded', timeout=15000)
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=15000)
 
             # Wait for specific selector if provided
             if wait_for_selector:
@@ -131,9 +131,11 @@ class PlaywrightCrawler(ABC):
         """Quick scroll to trigger lazy loading"""
         try:
             # Just 2 quick scrolls to trigger lazy loading
-            await self.page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
+            await self.page.evaluate(
+                "window.scrollTo(0, document.body.scrollHeight / 2)"
+            )
             await asyncio.sleep(0.1)
-            await self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            await self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(0.1)
         except Exception as e:
             logger.debug(f"Scroll error (non-critical): {e}")
@@ -186,10 +188,10 @@ class PlaywrightCrawler(ABC):
             close_selectors = [
                 'button[aria-label*="close"]',
                 'button[aria-label*="Close"]',
-                '.modal-close',
-                '.popup-close',
-                '.close-button',
-                '[data-dismiss="modal"]'
+                ".modal-close",
+                ".popup-close",
+                ".close-button",
+                '[data-dismiss="modal"]',
             ]
 
             for selector in close_selectors:
@@ -202,7 +204,7 @@ class PlaywrightCrawler(ABC):
 
     def parse_html(self, html: str) -> BeautifulSoup:
         """Parse HTML content"""
-        return BeautifulSoup(html, 'lxml')
+        return BeautifulSoup(html, "lxml")
 
     def extract_price(self, price_text: str) -> Optional[float]:
         """Extract price from text"""
@@ -210,10 +212,11 @@ class PlaywrightCrawler(ABC):
             return None
 
         import re
+
         # Remove currency symbols and non-numeric characters except dots and commas
-        price_text = re.sub(r'[^\d.,]', '', price_text)
+        price_text = re.sub(r"[^\d.,]", "", price_text)
         # Remove commas (thousands separator)
-        price_text = price_text.replace(',', '')
+        price_text = price_text.replace(",", "")
 
         try:
             return float(price_text)
@@ -226,7 +229,8 @@ class PlaywrightCrawler(ABC):
             return None
 
         import re
-        match = re.search(r'(\d+\.?\d*)', rating_text)
+
+        match = re.search(r"(\d+\.?\d*)", rating_text)
         if match:
             try:
                 rating = float(match.group(1))
@@ -239,10 +243,12 @@ class PlaywrightCrawler(ABC):
         """Clean and normalize text"""
         if not text:
             return None
-        return ' '.join(text.split()).strip()
+        return " ".join(text.split()).strip()
 
     @abstractmethod
-    async def extract_product_urls(self, category_url: str, max_pages: int = 1) -> List[str]:
+    async def extract_product_urls(
+        self, category_url: str, max_pages: int = 1
+    ) -> List[str]:
         """Extract product URLs from category page"""
         pass
 

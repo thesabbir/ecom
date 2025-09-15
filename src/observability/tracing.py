@@ -11,16 +11,22 @@ from typing import Optional, Dict, Any
 import time
 
 
-def setup_tracing(service_name: str = "ecommerce-crawler", jaeger_host: str = "localhost", jaeger_port: int = 6831):
+def setup_tracing(
+    service_name: str = "ecommerce-crawler",
+    jaeger_host: str = "localhost",
+    jaeger_port: int = 6831,
+):
     """Initialize OpenTelemetry tracing"""
 
     try:
         # Create a resource identifying the service
-        resource = Resource.create({
-            "service.name": service_name,
-            "service.version": "1.0.0",
-            "deployment.environment": "production"
-        })
+        resource = Resource.create(
+            {
+                "service.name": service_name,
+                "service.version": "1.0.0",
+                "deployment.environment": "production",
+            }
+        )
 
         # Create tracer provider
         provider = TracerProvider(resource=resource)
@@ -30,12 +36,14 @@ def setup_tracing(service_name: str = "ecommerce-crawler", jaeger_host: str = "l
             jaeger_exporter = JaegerExporter(
                 agent_host_name=jaeger_host,
                 agent_port=jaeger_port,
-                udp_split_oversized_batches=True
+                udp_split_oversized_batches=True,
             )
 
-            # Add batch span processor with smaller batch size
+            # Add batch span processor with smaller batch size to prevent UDP message too long errors
             provider.add_span_processor(
-                BatchSpanProcessor(jaeger_exporter, max_queue_size=512, max_export_batch_size=32)
+                BatchSpanProcessor(
+                    jaeger_exporter, max_queue_size=256, max_export_batch_size=16
+                )
             )
         except Exception as e:
             # If Jaeger is not available, just continue without it

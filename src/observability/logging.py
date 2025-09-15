@@ -59,29 +59,32 @@ class LogStorage:
         import uuid
 
         with duckdb.connect(str(self.db_path)) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO logs (
                     id, timestamp, level, logger, message,
                     trace_id, span_id, job_id, url, site_name,
                     operation, duration_ms, status, error, metadata
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, [
-                str(uuid.uuid4()),
-                log_entry.get('timestamp', datetime.now()),
-                log_entry.get('level', 'INFO'),
-                log_entry.get('logger', ''),
-                log_entry.get('message', ''),
-                log_entry.get('trace_id'),
-                log_entry.get('span_id'),
-                log_entry.get('job_id'),
-                log_entry.get('url'),
-                log_entry.get('site_name'),
-                log_entry.get('operation'),
-                log_entry.get('duration_ms'),
-                log_entry.get('status'),
-                log_entry.get('error'),
-                json.dumps(log_entry.get('metadata', {}))
-            ])
+            """,
+                [
+                    str(uuid.uuid4()),
+                    log_entry.get("timestamp", datetime.now()),
+                    log_entry.get("level", "INFO"),
+                    log_entry.get("logger", ""),
+                    log_entry.get("message", ""),
+                    log_entry.get("trace_id"),
+                    log_entry.get("span_id"),
+                    log_entry.get("job_id"),
+                    log_entry.get("url"),
+                    log_entry.get("site_name"),
+                    log_entry.get("operation"),
+                    log_entry.get("duration_ms"),
+                    log_entry.get("status"),
+                    log_entry.get("error"),
+                    json.dumps(log_entry.get("metadata", {})),
+                ],
+            )
 
     def query_logs(
         self,
@@ -92,7 +95,7 @@ class LogStorage:
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Query logs with filters"""
         with duckdb.connect(str(self.db_path)) as conn:
@@ -139,15 +142,18 @@ class LogStorage:
 
             # Clean up the results to handle NaN/Infinity values
             import numpy as np
+
             result = result.replace([np.inf, -np.inf], np.nan).fillna(value=np.nan)
-            records = result.to_dict('records')
+            records = result.to_dict("records")
 
             # Convert NaN to None for JSON serialization
             cleaned_records = []
             for record in records:
                 cleaned_record = {}
                 for key, value in record.items():
-                    if isinstance(value, float) and (np.isnan(value) or np.isinf(value)):
+                    if isinstance(value, float) and (
+                        np.isnan(value) or np.isinf(value)
+                    ):
                         cleaned_record[key] = None
                     else:
                         cleaned_record[key] = value
@@ -166,34 +172,46 @@ class LogStorage:
             stats = {}
 
             # Count by level
-            stats['by_level'] = conn.execute(f"""
+            stats["by_level"] = (
+                conn.execute(f"""
                 SELECT level, COUNT(*) as count
                 {base_query}
                 GROUP BY level
-            """).fetchdf().to_dict('records')
+            """)
+                .fetchdf()
+                .to_dict("records")
+            )
 
             # Count by operation
-            stats['by_operation'] = conn.execute(f"""
+            stats["by_operation"] = (
+                conn.execute(f"""
                 SELECT operation, COUNT(*) as count, AVG(duration_ms) as avg_duration
                 {base_query}
                 WHERE operation IS NOT NULL
                 GROUP BY operation
                 ORDER BY count DESC
                 LIMIT 10
-            """).fetchdf().to_dict('records')
+            """)
+                .fetchdf()
+                .to_dict("records")
+            )
 
             # Error summary
-            stats['errors'] = conn.execute(f"""
+            stats["errors"] = (
+                conn.execute(f"""
                 SELECT error, COUNT(*) as count
                 {base_query}
                 WHERE error IS NOT NULL
                 GROUP BY error
                 ORDER BY count DESC
                 LIMIT 10
-            """).fetchdf().to_dict('records')
+            """)
+                .fetchdf()
+                .to_dict("records")
+            )
 
             # Total logs
-            stats['total'] = conn.execute(f"SELECT COUNT(*) {base_query}").fetchone()[0]
+            stats["total"] = conn.execute(f"SELECT COUNT(*) {base_query}").fetchone()[0]
 
             return stats
 
@@ -207,20 +225,20 @@ class DatabaseLogHandler(logging.Handler):
     def emit(self, record):
         try:
             log_entry = {
-                'timestamp': datetime.fromtimestamp(record.created),
-                'level': record.levelname,
-                'logger': record.name,
-                'message': self.format(record),
-                'trace_id': getattr(record, 'trace_id', None),
-                'span_id': getattr(record, 'span_id', None),
-                'job_id': getattr(record, 'job_id', None),
-                'url': getattr(record, 'url', None),
-                'site_name': getattr(record, 'site_name', None),
-                'operation': getattr(record, 'operation', None),
-                'duration_ms': getattr(record, 'duration_ms', None),
-                'status': getattr(record, 'status', None),
-                'error': getattr(record, 'error', None),
-                'metadata': getattr(record, 'metadata', {})
+                "timestamp": datetime.fromtimestamp(record.created),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": self.format(record),
+                "trace_id": getattr(record, "trace_id", None),
+                "span_id": getattr(record, "span_id", None),
+                "job_id": getattr(record, "job_id", None),
+                "url": getattr(record, "url", None),
+                "site_name": getattr(record, "site_name", None),
+                "operation": getattr(record, "operation", None),
+                "duration_ms": getattr(record, "duration_ms", None),
+                "status": getattr(record, "status", None),
+                "error": getattr(record, "error", None),
+                "metadata": getattr(record, "metadata", {}),
             }
             log_storage.store_log(log_entry)
         except Exception:
@@ -248,7 +266,7 @@ def setup_logging():
                 ]
             ),
             structlog.processors.dict_tracebacks,
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -263,15 +281,15 @@ def setup_logging():
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     console_handler.setFormatter(console_formatter)
 
     # JSON file handler
     json_handler = logging.FileHandler(log_storage.json_log_file)
     json_formatter = jsonlogger.JsonFormatter(
-        '%(timestamp)s %(level)s %(name)s %(message)s',
-        rename_fields={'timestamp': '@timestamp', 'level': 'level'}
+        "%(timestamp)s %(level)s %(name)s %(message)s",
+        rename_fields={"timestamp": "@timestamp", "level": "level"},
     )
     json_handler.setFormatter(json_formatter)
 
@@ -303,7 +321,7 @@ def log_operation(operation: str, **context):
             operation=operation,
             duration_ms=duration_ms,
             status="success",
-            **context
+            **context,
         )
     except Exception as e:
         duration_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -313,7 +331,7 @@ def log_operation(operation: str, **context):
             duration_ms=duration_ms,
             status="failed",
             error=str(e),
-            **context
+            **context,
         )
         raise
 
@@ -324,10 +342,7 @@ class CrawlLogger:
     def __init__(self, job_id: str, trace_id: str = None):
         self.job_id = job_id
         self.trace_id = trace_id or str(uuid.uuid4())
-        self.logger = structlog.get_logger().bind(
-            job_id=job_id,
-            trace_id=trace_id
-        )
+        self.logger = structlog.get_logger().bind(job_id=job_id, trace_id=trace_id)
 
     def log_crawl_start(self, url: str, site_name: str, max_pages: int):
         self.logger.info(
@@ -335,16 +350,18 @@ class CrawlLogger:
             operation="crawl_start",
             url=url,
             site_name=site_name,
-            max_pages=max_pages
+            max_pages=max_pages,
         )
 
-    def log_page_fetch(self, url: str, status_code: int = None, duration_ms: float = None):
+    def log_page_fetch(
+        self, url: str, status_code: int = None, duration_ms: float = None
+    ):
         self.logger.info(
-            f"Fetched page",
+            "Fetched page",
             operation="page_fetch",
             url=url,
             status_code=status_code,
-            duration_ms=duration_ms
+            duration_ms=duration_ms,
         )
 
     def log_product_extracted(self, product_id: str, title: str, price: float):
@@ -353,15 +370,12 @@ class CrawlLogger:
             operation="product_extract",
             product_id=product_id,
             title=title[:100],
-            price=price
+            price=price,
         )
 
     def log_parse_error(self, url: str, error: str):
         self.logger.error(
-            "Failed to parse page",
-            operation="parse_error",
-            url=url,
-            error=error
+            "Failed to parse page", operation="parse_error", url=url, error=error
         )
 
     def log_crawl_complete(self, products_found: int, duration_ms: float):
@@ -370,7 +384,7 @@ class CrawlLogger:
             operation="crawl_complete",
             products_found=products_found,
             duration_ms=duration_ms,
-            status="completed"
+            status="completed",
         )
 
     def log_crawl_failed(self, error: str, duration_ms: float = None):
@@ -379,5 +393,5 @@ class CrawlLogger:
             operation="crawl_failed",
             error=error,
             duration_ms=duration_ms,
-            status="failed"
+            status="failed",
         )

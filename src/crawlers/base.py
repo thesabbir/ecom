@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 import httpx
 from bs4 import BeautifulSoup
 import asyncio
 from datetime import datetime
 import logging
-from ..models.product import Product, PriceUnit, ProductCondition
+from ..models.product import Product, PriceUnit
 
 logger = logging.getLogger(__name__)
 
@@ -16,16 +16,16 @@ class BaseCrawler(ABC):
         self.site_name = site_name
         self.session = httpx.AsyncClient(
             headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate, br",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
             },
             timeout=30.0,
-            follow_redirects=True
+            follow_redirects=True,
         )
         self.rate_limit_delay = 1.0
 
@@ -49,17 +49,21 @@ class BaseCrawler(ABC):
             return None
 
     def parse_html(self, html: str) -> BeautifulSoup:
-        return BeautifulSoup(html, 'lxml')
+        return BeautifulSoup(html, "lxml")
 
     @abstractmethod
-    async def extract_product_urls(self, category_url: str, max_pages: int = 1) -> List[str]:
+    async def extract_product_urls(
+        self, category_url: str, max_pages: int = 1
+    ) -> List[str]:
         pass
 
     @abstractmethod
     async def extract_product_data(self, product_url: str) -> Optional[Product]:
         pass
 
-    async def crawl_products(self, category_url: str, max_pages: int = 1) -> List[Product]:
+    async def crawl_products(
+        self, category_url: str, max_pages: int = 1
+    ) -> List[Product]:
         products = []
         product_urls = await self.extract_product_urls(category_url, max_pages)
 
@@ -76,8 +80,9 @@ class BaseCrawler(ABC):
             return None
 
         import re
-        price_text = re.sub(r'[^\d.,]', '', price_text)
-        price_text = price_text.replace(',', '')
+
+        price_text = re.sub(r"[^\d.,]", "", price_text)
+        price_text = price_text.replace(",", "")
 
         try:
             return float(price_text)
@@ -89,7 +94,8 @@ class BaseCrawler(ABC):
             return None
 
         import re
-        match = re.search(r'(\d+\.?\d*)', rating_text)
+
+        match = re.search(r"(\d+\.?\d*)", rating_text)
         if match:
             try:
                 rating = float(match.group(1))
@@ -101,15 +107,17 @@ class BaseCrawler(ABC):
     def clean_text(self, text: Optional[str]) -> Optional[str]:
         if not text:
             return None
-        return ' '.join(text.split()).strip()
+        return " ".join(text.split()).strip()
 
 
 class GenericCrawler(BaseCrawler):
     def __init__(self, base_url: str):
-        site_name = base_url.split('//')[1].split('/')[0].replace('www.', '')
+        site_name = base_url.split("//")[1].split("/")[0].replace("www.", "")
         super().__init__(base_url, site_name)
 
-    async def extract_product_urls(self, category_url: str, max_pages: int = 1) -> List[str]:
+    async def extract_product_urls(
+        self, category_url: str, max_pages: int = 1
+    ) -> List[str]:
         product_urls = []
         html = await self.fetch_page(category_url)
 
@@ -118,10 +126,10 @@ class GenericCrawler(BaseCrawler):
 
         soup = self.parse_html(html)
 
-        for link in soup.find_all('a', href=True):
-            href = link['href']
-            if 'product' in href.lower() or 'item' in href.lower():
-                if not href.startswith('http'):
+        for link in soup.find_all("a", href=True):
+            href = link["href"]
+            if "product" in href.lower() or "item" in href.lower():
+                if not href.startswith("http"):
                     href = self.base_url + href
                 product_urls.append(href)
 
@@ -136,7 +144,7 @@ class GenericCrawler(BaseCrawler):
         soup = self.parse_html(html)
 
         title = None
-        for tag in ['h1', 'h2']:
+        for tag in ["h1", "h2"]:
             element = soup.find(tag)
             if element:
                 title = self.clean_text(element.get_text())
@@ -147,9 +155,9 @@ class GenericCrawler(BaseCrawler):
 
         price = None
         price_patterns = [
-            {'class': re.compile(r'price', re.I)},
-            {'itemprop': 'price'},
-            {'data-price': True}
+            {"class": re.compile(r"price", re.I)},
+            {"itemprop": "price"},
+            {"data-price": True},
         ]
 
         for pattern in price_patterns:
@@ -164,16 +172,16 @@ class GenericCrawler(BaseCrawler):
             price = 0.0
 
         description = None
-        desc_element = soup.find(attrs={'class': re.compile(r'description', re.I)})
+        desc_element = soup.find(attrs={"class": re.compile(r"description", re.I)})
         if desc_element:
             description = self.clean_text(desc_element.get_text())[:500]
 
         images = []
-        for img in soup.find_all('img', src=True)[:10]:
-            src = img['src']
-            if not src.startswith('http'):
+        for img in soup.find_all("img", src=True)[:10]:
+            src = img["src"]
+            if not src.startswith("http"):
                 src = self.base_url + src
-            if 'product' in src.lower() or 'item' in src.lower():
+            if "product" in src.lower() or "item" in src.lower():
                 images.append(src)
 
         return Product(
@@ -186,5 +194,5 @@ class GenericCrawler(BaseCrawler):
             currency=PriceUnit.USD,
             images=images[:5] if images else [],
             main_image=images[0] if images else None,
-            scraped_at=datetime.now()
+            scraped_at=datetime.now(),
         )

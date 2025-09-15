@@ -1,6 +1,6 @@
 import re
 import asyncio
-from typing import List, Optional, Dict
+from typing import List, Optional
 from datetime import datetime
 from ..models.product import Product, PriceUnit
 from playwright.async_api import async_playwright, Browser
@@ -11,13 +11,12 @@ from ..utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class RyansCrawler:
-    """Optimized parallel crawler for Ryans.com"""
+class StarTechCrawler:
+    """Optimized parallel crawler for StarTech.com.bd"""
 
     def __init__(self, max_concurrent: int = 5, storage_path: str = "data"):
-        self.base_url = "https://www.ryans.com"
-        self.site_name = "Ryans"
-        self.categories_url = "https://www.ryans.com/categories"
+        self.base_url = "https://www.startech.com.bd"
+        self.site_name = "StarTech"
         self.rate_limit_delay = 0.1
         self.max_concurrent = max_concurrent
         self.browser: Optional[Browser] = None
@@ -84,7 +83,7 @@ class RyansCrawler:
                     });
                 """)
 
-                # Navigate to page with increased timeout and retry
+                # Navigate to page with increased timeout
                 await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
                 # Wait for selector if provided
@@ -132,21 +131,19 @@ class RyansCrawler:
 
         for page_num in range(1, max_pages + 1):
             page_url = (
-                f"{category_url}?page={page_num}"
-                if "?" not in category_url
-                else f"{category_url}&page={page_num}"
+                f"{category_url}?page={page_num}" if page_num > 1 else category_url
             )
 
             logger.info(f"Fetching page {page_num}: {page_url}")
             html = await self.fetch_with_new_page(
-                page_url, wait_for_selector="div.category-single-product"
+                page_url, wait_for_selector="div.p-item"
             )
 
             if not html:
                 break
 
             soup = BeautifulSoup(html, "lxml")
-            containers = soup.find_all("div", class_="category-single-product")
+            containers = soup.find_all("div", class_="p-item")
 
             for container in containers:
                 link = container.find("a", href=True)
@@ -158,7 +155,12 @@ class RyansCrawler:
                         product_urls.append(href)
 
             # Check for next page
-            if not soup.find("a", text=re.compile(r"Next|→")):
+            pagination = soup.find("ul", class_="pagination")
+            if pagination:
+                next_page = pagination.find("a", string=str(page_num + 1))
+                if not next_page:
+                    break
+            else:
                 break
 
         logger.info(f"Found {len(product_urls)} products")
@@ -173,16 +175,18 @@ class RyansCrawler:
 
         soup = BeautifulSoup(html, "lxml")
 
-        # Extract product ID
-        product_id_match = re.search(r"/product/([^/?]+)", product_url)
+        # Extract product ID from URL
+        product_id_match = re.search(r"/([^/]+)$", product_url.rstrip("/"))
         product_id = (
-            f"ryans_{product_id_match.group(1)}"
+            f"startech_{product_id_match.group(1)}"
             if product_id_match
-            else f"ryans_{hash(product_url)}"
+            else f"startech_{hash(product_url)}"
         )
 
         # Extract title
-        title_elem = soup.find("h1")
+        title_elem = soup.find("h1", class_="product-name")
+        if not title_elem:
+            title_elem = soup.find("h1")
         title = self.clean_text(title_elem.get_text()) if title_elem else None
 
         if not title:
@@ -190,18 +194,98 @@ class RyansCrawler:
 
         # Extract price
         price = None
-        price_elem = soup.find(["span", "div"], class_=re.compile(r"price|amount"))
+        original_price = None
+
+        price_elem = soup.find("td", class_="product-info-price")
         if price_elem:
             price = self.extract_price(price_elem.get_text())
 
-        # Extract other fields (simplified for speed)
+        regular_price_elem = soup.find("td", class_="regular-price")
+        if regular_price_elem:
+            original_price = self.extract_price(regular_price_elem.get_text())
+
+        # Extract brand
+        brand = None
+        brand_label = soup.find("td", string=re.compile(r"Brand"))
+        if brand_label:
+            brand_value = brand_label.find_next_sibling("td")
+            if brand_value:
+                brand = self.clean_text(brand_value.get_text())
+
+        # Extract SKU/Product Code
+        sku = None
+        code_label = soup.find("td", string=re.compile(r"Product Code"))
+        if code_label:
+            code_value = code_label.find_next_sibling("td")
+            if code_value:
+                sku = self.clean_text(code_value.get_text())
+
+        # Extract stock status
+        in_stock = False
+        status_label = soup.find("td", string=re.compile(r"Status"))
+        if status_label:
+            status_value = status_label.find_next_sibling("td")
+            if status_value:
+                status_text = status_value.get_text().lower()
+                in_stock = "in stock" in status_text
+
+        # Extract description
+        description = None
+        desc_section = soup.find("section", id="description")
+        if desc_section:
+            description = self.clean_text(desc_section.get_text())[:500]
+
+        # Extract images
+        images = []
+        img_container = soup.find("div", class_="product-img-holder")
+        if img_container:
+            img_tags = img_container.find_all("img")
+            for img in img_tags:
+                img_src = img.get("src")
+                if img_src:
+                    if not img_src.startswith("http"):
+                        img_src = self.base_url + img_src
+                    images.append(img_src)
+
+        # Extract specifications
+        specifications = {}
+        spec_section = soup.find("section", id="specification")
+        if spec_section:
+            spec_tables = spec_section.find_all("table")
+            for table in spec_tables:
+                rows = table.find_all("tr")
+                for row in rows:
+                    cells = row.find_all("td")
+                    if len(cells) >= 2:
+                        key = self.clean_text(cells[0].get_text())
+                        value = self.clean_text(cells[1].get_text())
+                        if key and value:
+                            specifications[key] = value
+
+        # Extract category
+        category = None
+        breadcrumb = soup.find("ol", class_="breadcrumb")
+        if breadcrumb:
+            links = breadcrumb.find_all("a")
+            if len(links) > 1:
+                category = self.clean_text(links[-1].get_text())
+
         return Product(
             product_id=product_id,
             url=product_url,
             site_name=self.site_name,
             title=title,
+            description=description,
             price=price or 0.0,
+            original_price=original_price,
             currency=PriceUnit.BDT,
+            brand=brand,
+            category=category,
+            images=images,
+            main_image=images[0] if images else None,
+            in_stock=in_stock,
+            sku=sku,
+            specifications=specifications,
             scraped_at=datetime.now(),
         )
 
@@ -287,116 +371,6 @@ class RyansCrawler:
         )
         return products
 
-    async def get_all_categories(self) -> List[Dict[str, str]]:
-        """Extract all category URLs from the categories page"""
-        categories = []
-        html = await self.fetch_with_new_page(
-            self.categories_url, wait_for_selector='div[class*="category"]'
-        )
-
-        if not html:
-            logger.error("Failed to fetch categories page")
-            return categories
-
-        soup = BeautifulSoup(html, "lxml")
-
-        # Find all category containers
-        category_containers = soup.find_all(
-            "div", class_=re.compile(r"category-item")
-        ) or soup.find_all("a", href=re.compile(r"/category/"))
-
-        for container in category_containers:
-            try:
-                if container.name == "a":
-                    link = container
-                else:
-                    link = container.find("a")
-
-                if link and link.get("href"):
-                    href = link["href"]
-                    if not href.startswith("http"):
-                        href = self.base_url + href
-
-                    name = self.clean_text(link.get_text())
-                    if name and "/category/" in href:
-                        categories.append({"name": name, "url": href})
-            except Exception as e:
-                logger.error(f"Error extracting category: {e}")
-
-        logger.info(f"Found {len(categories)} categories")
-        return categories
-
-    async def crawl_all_categories(
-        self,
-        max_pages_per_category: int = 5,
-        skip_duplicates: bool = True,
-        skip_if_scraped_within_hours: Optional[int] = 24,
-        overwrite: bool = False,
-    ) -> List[Product]:
-        """Crawl all products from all categories with skip options"""
-        all_products = []
-        total_saved = 0
-        total_skipped = 0
-
-        # Clear data if overwrite mode
-        if overwrite:
-            logger.info("Overwrite mode: Clearing existing data")
-            # Clear CSV file
-            import os
-
-            if os.path.exists(self.storage.csv_path):
-                os.remove(self.storage.csv_path)
-            self.storage._init_storage()
-
-        # Get all categories
-        categories = await self.get_all_categories()
-
-        if not categories:
-            logger.error("No categories found")
-            return all_products
-
-        logger.info(f"Starting to crawl {len(categories)} categories")
-        logger.info(
-            f"Settings: skip_duplicates={skip_duplicates}, skip_recent={skip_if_scraped_within_hours}h, overwrite={overwrite}"
-        )
-
-        # Get storage stats before crawling
-        stats_before = self.storage.get_stats()
-        logger.info(f"Storage before: {stats_before.get('total_products', 0)} products")
-
-        # Crawl each category
-        for i, category in enumerate(categories, 1):
-            logger.info(f"Crawling category {i}/{len(categories)}: {category['name']}")
-
-            try:
-                products = await self.crawl_category_parallel(
-                    category["url"],
-                    max_pages=max_pages_per_category,
-                    skip_duplicates=skip_duplicates,
-                    skip_if_scraped_within_hours=skip_if_scraped_within_hours,
-                )
-
-                # Add category name to products
-                for product in products:
-                    if not product.category:
-                        product.category = category["name"]
-
-                all_products.extend(products)
-                total_saved += len(products)
-
-            except Exception as e:
-                logger.error(f"Error crawling category {category['name']}: {e}")
-                continue
-
-        # Get storage stats after crawling
-        stats_after = self.storage.get_stats()
-        logger.info(f"Storage after: {stats_after.get('total_products', 0)} products")
-        logger.info(
-            f"Crawl complete: {total_saved} products saved, {stats_after.get('total_products', 0) - stats_before.get('total_products', 0)} new"
-        )
-
-        return all_products
-
     def clean_text(self, text: Optional[str]) -> Optional[str]:
         """Clean text"""
         if not text:
@@ -407,11 +381,12 @@ class RyansCrawler:
         """Extract price from text"""
         if not price_text:
             return None
-        import re
-
-        price_text = re.sub(r"[^\d.,]", "", price_text)
-        price_text = price_text.replace(",", "")
-        try:
-            return float(price_text)
-        except ValueError:
-            return None
+        # Remove currency symbol and extract first number
+        price_text = re.sub(r"[৳,]", "", price_text)
+        match = re.search(r"\d+(?:\.\d+)?", price_text)
+        if match:
+            try:
+                return float(match.group())
+            except ValueError:
+                return None
+        return None
