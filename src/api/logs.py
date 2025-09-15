@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import uuid
 import redis
 import json
+import os
 
 from ..utils.logging_config import get_logger
 from ..workers.log_tasks import process_log_batch, query_logs_async, generate_log_report
@@ -18,7 +19,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/logs", tags=["Logging"])
 
 # Redis client for job tracking
-REDIS_URL = "redis://localhost:6379/1"
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379") + "/1"
 redis_client = redis.from_url(REDIS_URL)
 
 

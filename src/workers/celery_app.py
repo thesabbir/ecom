@@ -4,7 +4,7 @@ from kombu import Queue, Exchange
 from datetime import timedelta
 
 # Get Redis URL from environment or use default
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 BROKER_URL = os.getenv("CELERY_BROKER_URL", f"{REDIS_URL}/0")
 RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"{REDIS_URL}/1")
 

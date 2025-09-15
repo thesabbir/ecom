@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 import redis
 import json
+import os
 
 from ..models.product import CrawlRequest, CrawlResponse
 from ..workers.crawl_tasks import crawl_website, cancel_crawl_job
@@ -11,16 +12,16 @@ from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Initialize router
-router = APIRouter(prefix="/api", tags=["Crawl Queue"])
+# Initialize router with better organization
+router = APIRouter(prefix="/api/crawl", tags=["Crawling"])
 
 # Redis client for job tracking
-REDIS_URL = "redis://localhost:6379/1"
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379") + "/1"
 redis_client = redis.from_url(REDIS_URL)
 
 
 @router.post(
-    "/crawl",
+    "/",
     response_model=CrawlResponse,
     summary="Submit crawl job to queue",
     description="Submit a crawl job to the Celery task queue for processing by workers",
@@ -33,21 +34,23 @@ async def submit_crawl_job(request: CrawlRequest) -> CrawlResponse:
         # Generate job ID
         job_id = str(uuid.uuid4())
 
-        # Prepare job data
+        # Prepare job data - ensure all values are JSON serializable
         job_data = {
             "job_id": job_id,
             "status": "queued",
-            "url": str(request.url),
+            "url": str(request.url),  # Convert HttpUrl to string
             "created_at": datetime.now().isoformat(),
-            "request": request.model_dump_json(),
+            "request": request.model_dump_json(),  # This handles HttpUrl serialization
         }
 
         # Store job in Redis
         redis_client.hset(f"job:{job_id}", mapping=job_data)
 
         # Submit to Celery queue
+        # Use model_dump with mode='json' to properly serialize HttpUrl
+        request_data = request.model_dump(mode='json')
         crawl_website.apply_async(
-            args=[job_id, request.model_dump()],
+            args=[job_id, request_data],
             task_id=job_id,
             queue="crawl_default",
             priority=5,
@@ -70,7 +73,7 @@ async def submit_crawl_job(request: CrawlRequest) -> CrawlResponse:
 
 
 @router.get(
-    "/crawl/{job_id}",
+    "/{job_id}",
     summary="Get crawl job status",
     description="Get the current status and results of a crawl job",
 )
@@ -106,7 +109,7 @@ async def get_job_status(job_id: str) -> Dict[str, Any]:
 
 
 @router.delete(
-    "/crawl/{job_id}",
+    "/{job_id}",
     summary="Cancel crawl job",
     description="Cancel a running or queued crawl job",
 )
@@ -124,7 +127,7 @@ async def cancel_job(job_id: str) -> Dict[str, Any]:
 
 
 @router.get(
-    "/jobs",
+    "/list",
     summary="List crawl jobs",
     description="List all crawl jobs with optional filtering",
 )
@@ -209,7 +212,7 @@ async def get_worker_status() -> Dict[str, Any]:
 
 
 @router.get(
-    "/queue/stats",
+    "/stats",
     summary="Get queue statistics",
     description="Get statistics about the task queue",
 )
