@@ -84,7 +84,7 @@ async def competitive_analysis(category: Optional[str] = None):
                 "rating": "mean",
                 "review_count": "sum",
                 "product_id": "count",
-                "in_stock": lambda x: (x == True).sum() / len(x) * 100,
+                "in_stock": lambda x: x.sum() / len(x) * 100,
             }
         )
         .round(2)
@@ -147,7 +147,7 @@ async def get_demand_indicators(top_n: int = Query(20, ge=5, le=100)):
 
     # Out of stock categories
     out_of_stock = (
-        df[df["in_stock"] == False]
+        df[~df["in_stock"]]
         .groupby("category")
         .size()
         .sort_values(ascending=False)
@@ -205,7 +205,7 @@ async def category_performance():
                 "review_count": "sum",
                 "discount_percentage": "mean",
                 "product_id": "count",
-                "in_stock": lambda x: (x == True).sum() / len(x) * 100,
+                "in_stock": lambda x: x.sum() / len(x) * 100,
             }
         )
         .round(2)

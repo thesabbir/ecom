@@ -1,6 +1,7 @@
 """
 Queue-based logging API endpoints for production use
 """
+
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
@@ -9,11 +10,7 @@ import redis
 import json
 
 from ..utils.logging_config import get_logger
-from ..workers.log_tasks import (
-    process_log_batch,
-    query_logs_async,
-    generate_log_report
-)
+from ..workers.log_tasks import process_log_batch, query_logs_async, generate_log_report
 
 logger = get_logger(__name__)
 
@@ -28,7 +25,7 @@ redis_client = redis.from_url(REDIS_URL)
 @router.post(
     "/batch",
     summary="Submit log batch to queue",
-    description="Submit a batch of log entries for asynchronous processing"
+    description="Submit a batch of log entries for asynchronous processing",
 )
 async def submit_log_batch(log_entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -44,10 +41,8 @@ async def submit_log_batch(log_entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         batch_id = str(uuid.uuid4())
 
         # Submit to Celery queue
-        task = process_log_batch.apply_async(
-            args=[log_entries],
-            task_id=batch_id,
-            queue='logs'
+        process_log_batch.apply_async(
+            args=[log_entries], task_id=batch_id, queue="logs"
         )
 
         logger.info(f"Submitted log batch {batch_id} with {len(log_entries)} entries")
@@ -56,7 +51,7 @@ async def submit_log_batch(log_entries: List[Dict[str, Any]]) -> Dict[str, Any]:
             "batch_id": batch_id,
             "entries": len(log_entries),
             "status": "queued",
-            "message": "Log batch submitted for processing"
+            "message": "Log batch submitted for processing",
         }
 
     except Exception as e:
@@ -67,14 +62,16 @@ async def submit_log_batch(log_entries: List[Dict[str, Any]]) -> Dict[str, Any]:
 @router.post(
     "/query",
     summary="Submit async log query",
-    description="Submit a log query job for asynchronous execution"
+    description="Submit a log query job for asynchronous execution",
 )
 async def submit_log_query(
-    level: Optional[str] = Query(None, enum=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
+    level: Optional[str] = Query(
+        None, enum=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+    ),
     logger_name: Optional[str] = Query(None),
     search_text: Optional[str] = Query(None),
     hours_ago: Optional[int] = Query(24),
-    limit: int = Query(1000, ge=1, le=10000)
+    limit: int = Query(1000, ge=1, le=10000),
 ) -> Dict[str, Any]:
     """
     Submit a log query to the queue for async processing
@@ -92,7 +89,7 @@ async def submit_log_query(
         start_time = end_time - timedelta(hours=hours_ago) if hours_ago else None
 
         # Submit query task
-        task = query_logs_async.apply_async(
+        query_logs_async.apply_async(
             args=[
                 job_id,
                 start_time.isoformat() if start_time else None,
@@ -100,10 +97,10 @@ async def submit_log_query(
                 level,
                 logger_name,
                 search_text,
-                limit
+                limit,
             ],
             task_id=job_id,
-            queue='logs'
+            queue="logs",
         )
 
         logger.info(f"Submitted log query {job_id}")
@@ -117,8 +114,8 @@ async def submit_log_query(
                 "logger_name": logger_name,
                 "search_text": search_text,
                 "hours_ago": hours_ago,
-                "limit": limit
-            }
+                "limit": limit,
+            },
         }
 
     except Exception as e:
@@ -129,7 +126,7 @@ async def submit_log_query(
 @router.get(
     "/query/{job_id}",
     summary="Get query results",
-    description="Retrieve results of an async log query"
+    description="Retrieve results of an async log query",
 )
 async def get_query_results(job_id: str) -> Dict[str, Any]:
     """
@@ -144,8 +141,9 @@ async def get_query_results(job_id: str) -> Dict[str, Any]:
 
         # Decode bytes to string
         job_data = {
-            k.decode() if isinstance(k, bytes) else k:
-            v.decode() if isinstance(v, bytes) else v
+            k.decode() if isinstance(k, bytes) else k: v.decode()
+            if isinstance(v, bytes)
+            else v
             for k, v in job_data.items()
         }
 
@@ -165,15 +163,15 @@ async def get_query_results(job_id: str) -> Dict[str, Any]:
 @router.post(
     "/report",
     summary="Generate log report",
-    description="Submit a request to generate various log reports asynchronously"
+    description="Submit a request to generate various log reports asynchronously",
 )
 async def generate_report(
     report_type: str = Query(
         ...,
         enum=["error_summary", "performance", "crawler_activity", "system_health"],
-        description="Type of report to generate"
+        description="Type of report to generate",
     ),
-    hours: int = Query(24, ge=1, le=168, description="Hours of data to analyze")
+    hours: int = Query(24, ge=1, le=168, description="Hours of data to analyze"),
 ) -> Dict[str, Any]:
     """
     Generate comprehensive log reports asynchronously
@@ -188,10 +186,8 @@ async def generate_report(
         job_id = str(uuid.uuid4())
 
         # Submit report generation task
-        task = generate_log_report.apply_async(
-            args=[job_id, report_type, hours],
-            task_id=job_id,
-            queue='logs'
+        generate_log_report.apply_async(
+            args=[job_id, report_type, hours], task_id=job_id, queue="logs"
         )
 
         logger.info(f"Submitted report generation {job_id} ({report_type})")
@@ -201,7 +197,7 @@ async def generate_report(
             "status": "queued",
             "report_type": report_type,
             "message": "Report generation started",
-            "estimated_time": "30-60 seconds"
+            "estimated_time": "30-60 seconds",
         }
 
     except Exception as e:
@@ -212,7 +208,7 @@ async def generate_report(
 @router.get(
     "/report/{job_id}",
     summary="Get report results",
-    description="Retrieve generated report results"
+    description="Retrieve generated report results",
 )
 async def get_report_results(job_id: str) -> Dict[str, Any]:
     """
@@ -227,8 +223,9 @@ async def get_report_results(job_id: str) -> Dict[str, Any]:
 
         # Decode bytes to string
         report_data = {
-            k.decode() if isinstance(k, bytes) else k:
-            v.decode() if isinstance(v, bytes) else v
+            k.decode() if isinstance(k, bytes) else k: v.decode()
+            if isinstance(v, bytes)
+            else v
             for k, v in report_data.items()
         }
 
@@ -248,7 +245,7 @@ async def get_report_results(job_id: str) -> Dict[str, Any]:
 @router.get(
     "/stats",
     summary="Get logging system stats",
-    description="Get real-time statistics about the logging system"
+    description="Get real-time statistics about the logging system",
 )
 async def get_logging_stats() -> Dict[str, Any]:
     """
@@ -260,19 +257,17 @@ async def get_logging_stats() -> Dict[str, Any]:
 
         if stats:
             stats = {
-                k.decode() if isinstance(k, bytes) else k:
-                v.decode() if isinstance(v, bytes) else v
+                k.decode() if isinstance(k, bytes) else k: v.decode()
+                if isinstance(v, bytes)
+                else v
                 for k, v in stats.items()
             }
         else:
-            stats = {
-                "total_processed": 0,
-                "total_failed": 0,
-                "last_batch_time": None
-            }
+            stats = {"total_processed": 0, "total_failed": 0, "last_batch_time": None}
 
         # Get queue length
         from ..workers.celery_app import app
+
         inspect = app.control.inspect()
 
         # Count pending log tasks
@@ -282,34 +277,34 @@ async def get_logging_stats() -> Dict[str, Any]:
         log_queue_length = 0
         if reserved:
             for worker, tasks in reserved.items():
-                log_queue_length += len([t for t in tasks if 'log' in t.get('name', '')])
+                log_queue_length += len(
+                    [t for t in tasks if "log" in t.get("name", "")]
+                )
 
         if active:
             for worker, tasks in active.items():
-                log_queue_length += len([t for t in tasks if 'log' in t.get('name', '')])
+                log_queue_length += len(
+                    [t for t in tasks if "log" in t.get("name", "")]
+                )
 
         return {
             "processing_stats": stats,
             "queue_length": log_queue_length,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     except Exception as e:
         logger.error(f"Error getting logging stats: {e}")
-        return {
-            "error": str(e),
-            "message": "Could not retrieve logging statistics"
-        }
+        return {"error": str(e), "message": "Could not retrieve logging statistics"}
 
 
 @router.post(
     "/stream",
     summary="Stream logs to queue",
-    description="Stream log entries to the queue in real-time"
+    description="Stream log entries to the queue in real-time",
 )
 async def stream_logs(
-    background_tasks: BackgroundTasks,
-    log_entry: Dict[str, Any]
+    background_tasks: BackgroundTasks, log_entry: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Stream individual log entries to the queue
@@ -321,21 +316,18 @@ async def stream_logs(
     """
     try:
         # Add timestamp if not present
-        if 'timestamp' not in log_entry:
-            log_entry['timestamp'] = datetime.now().isoformat()
+        if "timestamp" not in log_entry:
+            log_entry["timestamp"] = datetime.now().isoformat()
 
         # Queue single entry as a batch of 1
         background_tasks.add_task(
             process_log_batch.apply_async,
             args=[[log_entry]],
-            queue='logs',
-            priority=1  # Lower priority for individual entries
+            queue="logs",
+            priority=1,  # Lower priority for individual entries
         )
 
-        return {
-            "status": "accepted",
-            "message": "Log entry queued for processing"
-        }
+        return {"status": "accepted", "message": "Log entry queued for processing"}
 
     except Exception as e:
         logger.error(f"Error streaming log: {e}")
@@ -345,11 +337,11 @@ async def stream_logs(
 @router.get(
     "/jobs",
     summary="List log processing jobs",
-    description="List all log query and report jobs"
+    description="List all log query and report jobs",
 )
 async def list_log_jobs(
     job_type: Optional[str] = Query(None, enum=["query", "report"]),
-    limit: int = Query(50, ge=1, le=100)
+    limit: int = Query(50, ge=1, le=100),
 ) -> Dict[str, Any]:
     """
     List recent log processing jobs
@@ -364,12 +356,17 @@ async def list_log_jobs(
                 job_data = redis_client.hgetall(key)
                 if job_data:
                     job_data = {
-                        k.decode() if isinstance(k, bytes) else k:
-                        v.decode() if isinstance(v, bytes) else v
+                        k.decode() if isinstance(k, bytes) else k: v.decode()
+                        if isinstance(v, bytes)
+                        else v
                         for k, v in job_data.items()
                     }
                     job_data["job_type"] = "query"
-                    job_data["job_id"] = key.decode().split(":")[1] if isinstance(key, bytes) else key.split(":")[1]
+                    job_data["job_id"] = (
+                        key.decode().split(":")[1]
+                        if isinstance(key, bytes)
+                        else key.split(":")[1]
+                    )
                     jobs.append(job_data)
 
         # Get report jobs
@@ -379,25 +376,26 @@ async def list_log_jobs(
                 job_data = redis_client.hgetall(key)
                 if job_data:
                     job_data = {
-                        k.decode() if isinstance(k, bytes) else k:
-                        v.decode() if isinstance(v, bytes) else v
+                        k.decode() if isinstance(k, bytes) else k: v.decode()
+                        if isinstance(v, bytes)
+                        else v
                         for k, v in job_data.items()
                     }
                     job_data["job_type"] = "report"
-                    job_data["job_id"] = key.decode().split(":")[1] if isinstance(key, bytes) else key.split(":")[1]
+                    job_data["job_id"] = (
+                        key.decode().split(":")[1]
+                        if isinstance(key, bytes)
+                        else key.split(":")[1]
+                    )
                     jobs.append(job_data)
 
         # Sort by timestamp (newest first)
         jobs.sort(
             key=lambda x: x.get("started_at", "") or x.get("completed_at", ""),
-            reverse=True
+            reverse=True,
         )
 
-        return {
-            "jobs": jobs[:limit],
-            "total": len(jobs),
-            "limit": limit
-        }
+        return {"jobs": jobs[:limit], "total": len(jobs), "limit": limit}
 
     except Exception as e:
         logger.error(f"Error listing log jobs: {e}")

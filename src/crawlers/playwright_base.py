@@ -157,7 +157,7 @@ class PlaywrightCrawler(ABC):
         try:
             await self.page.wait_for_selector(selector, timeout=timeout)
             return True
-        except:
+        except Exception:
             return False
 
     async def extract_text(self, selector: str) -> Optional[str]:

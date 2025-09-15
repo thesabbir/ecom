@@ -46,7 +46,7 @@ async def submit_crawl_job(request: CrawlRequest) -> CrawlResponse:
         redis_client.hset(f"job:{job_id}", mapping=job_data)
 
         # Submit to Celery queue
-        task = crawl_website.apply_async(
+        crawl_website.apply_async(
             args=[job_id, request.model_dump()],
             task_id=job_id,
             queue="crawl_default",
@@ -115,7 +115,7 @@ async def cancel_job(job_id: str) -> Dict[str, Any]:
     Cancel a crawl job
     """
     try:
-        result = cancel_crawl_job.apply_async(args=[job_id])
+        cancel_crawl_job.apply_async(args=[job_id])
         return {"message": "Cancellation requested", "job_id": job_id}
 
     except Exception as e:

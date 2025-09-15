@@ -584,7 +584,7 @@ async def get_crawler_info():
                 }
             },
         },
-        200: {
+        409: {
             "description": "Returns existing job if duplicate detected",
             "content": {
                 "application/json": {

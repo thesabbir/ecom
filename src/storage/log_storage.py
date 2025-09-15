@@ -148,7 +148,7 @@ class ParquetLogStorage:
                     if log_dict.get("extra_data"):
                         try:
                             log_dict["extra_data"] = json.loads(log_dict["extra_data"])
-                        except:
+                        except (json.JSONDecodeError, TypeError):
                             pass
                     logs.append(log_dict)
 

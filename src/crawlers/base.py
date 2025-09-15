@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import asyncio
 from datetime import datetime
 import logging
+import re
 from ..models.product import Product, PriceUnit
 
 logger = logging.getLogger(__name__)

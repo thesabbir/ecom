@@ -336,7 +336,6 @@ class RyansCrawler:
         """Crawl all products from all categories with skip options"""
         all_products = []
         total_saved = 0
-        total_skipped = 0
 
         # Clear data if overwrite mode
         if overwrite:

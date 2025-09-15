@@ -13,10 +13,7 @@ app = Celery(
     "ecommerce_crawler",
     broker=BROKER_URL,
     backend=RESULT_BACKEND,
-    include=[
-        "src.workers.crawl_tasks",
-        "src.workers.log_tasks"
-    ],
+    include=["src.workers.crawl_tasks", "src.workers.log_tasks"],
 )
 
 # Configure Celery
