@@ -73,7 +73,7 @@ async def submit_crawl_job(request: CrawlRequest) -> CrawlResponse:
 
 
 @router.get(
-    "/{job_id}",
+    "/job/{job_id}",
     summary="Get crawl job status",
     description="Get the current status and results of a crawl job",
 )
@@ -109,7 +109,7 @@ async def get_job_status(job_id: str) -> Dict[str, Any]:
 
 
 @router.delete(
-    "/{job_id}",
+    "/job/{job_id}",
     summary="Cancel crawl job",
     description="Cancel a running or queued crawl job",
 )

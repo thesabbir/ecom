@@ -1,5 +1,3 @@
-version: '3.8'
-
 x-common-env: &common-env
   REDIS_URL: ${REDIS_URL:-redis://redis:6379}
   CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
@@ -40,6 +38,11 @@ services:
       retries: 5
     restart: ${RESTART_POLICY:-no}
     profiles: ["dev", "prod", "test"]
+    deploy:
+      resources:
+        limits:
+          cpus: ${REDIS_CPU_LIMIT:-1}
+          memory: ${REDIS_MEM_LIMIT:-1G}
 
   api:
     <<: *app-service
@@ -56,7 +59,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./src:/app/src  # Dev only - for hot reload
+      - ./src:/app/src # Dev only - for hot reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
@@ -68,11 +71,11 @@ services:
     command: celery -A src.workers.celery_app worker --loglevel=${LOG_LEVEL:-info} --concurrency=${WORKER_CONCURRENCY:-4} -Q crawl_high,crawl_default,crawl_low
     profiles: ["dev", "prod"]
     deploy:
-      replicas: ${WORKER_REPLICAS:-2}
+      replicas: ${WORKER_REPLICAS:-4}
       resources:
         limits:
-          cpus: ${WORKER_CPU_LIMIT:-2}
-          memory: ${WORKER_MEM_LIMIT:-1G}
+          cpus: ${WORKER_CPU_LIMIT:-4}
+          memory: ${WORKER_MEM_LIMIT:-2G}
 
   log_worker:
     <<: *app-service

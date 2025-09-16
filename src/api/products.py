@@ -5,6 +5,7 @@ Product data retrieval and search endpoints
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from pydantic import BaseModel, Field
+import pandas as pd
 
 from ..storage.parquet_storage import ParquetStorage
 from ..utils.logging_config import get_logger
@@ -58,6 +59,16 @@ async def get_products(
 
         # Apply pagination
         df = df.iloc[offset : offset + limit]
+
+        # Convert complex types to JSON-serializable formats
+        for col in df.columns:
+            if col in ["tags", "images", "variants"]:
+                df[col] = df[col].apply(lambda x: x if isinstance(x, list) else [])
+            elif col in ["specifications"]:
+                # Only keep non-null specification values
+                df[col] = df[col].apply(lambda x: {k: v for k, v in (x if isinstance(x, dict) else {}).items() if v is not None})
+            elif col in ["scraped_at", "updated_at"]:
+                df[col] = df[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
 
         # Convert to dict
         products = df.to_dict("records")
@@ -124,6 +135,16 @@ async def search_products(params: SearchParams = Query()):
         # Pagination
         offset = (params.page - 1) * params.page_size
         df = df.iloc[offset : offset + params.page_size]
+
+        # Convert complex types to JSON-serializable formats
+        for col in df.columns:
+            if col in ["tags", "images", "variants"]:
+                df[col] = df[col].apply(lambda x: x if isinstance(x, list) else [])
+            elif col in ["specifications"]:
+                # Only keep non-null specification values
+                df[col] = df[col].apply(lambda x: {k: v for k, v in (x if isinstance(x, dict) else {}).items() if v is not None})
+            elif col in ["scraped_at", "updated_at"]:
+                df[col] = df[col].apply(lambda x: x.isoformat() if pd.notna(x) else None)
 
         return {
             "results": df.to_dict("records"),

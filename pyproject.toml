@@ -19,7 +19,6 @@ dependencies = [
     "pandas>=2.3.2",
     "playwright>=1.55.0",
     "prometheus-client>=0.22.1",
-    "pyarrow>=21.0.0",
     "pydantic>=2.11.9",
     "python-dotenv>=1.1.1",
     "python-json-logger>=3.3.0",
